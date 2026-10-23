@@ -913,6 +913,47 @@ function weekLabel(w) {
 /* =========================================================================
    SEDES VISIBLES Y ORDENAMIENTO (§4)
    ========================================================================= */
+/* Cosecha: primero los fundos de la gerencia de Javier y luego los de Ari. Dentro de cada gerencia los fundos
+   de una misma familia (Natalia HPP + GR/BULK, Lar California HPP + GR/BULK, Edén Raymi + Rosita + Cascade)
+   van juntos. Las familias se ordenan de mayor a menor (según su mejor fila) y las filas de cada familia
+   también de mayor a menor. Una familia se ubica según su mejor fila. Lo que no está en la lista (p.ej. Fundo Zoe) va al final. */
+function familiaCosecha(sede) {
+  if (sede.indexOf('FDO NATALIA') === 0) return 'FDO NATALIA';
+  if (sede.indexOf('LAR CALIFORNIA') === 0) return 'LAR CALIFORNIA';
+  if (sede.indexOf('EDEN') === 0) return 'EDEN';
+  if (sede.indexOf('SANTA ZOILA') === 0) return 'SANTA ZOILA';
+  return sede;
+}
+const GERENCIA_COSECHA = {
+  'FDO NATALIA': 0, 'LAR CALIFORNIA': 0, 'FDO VALERIE': 0, 'FDO CARRIZALES': 0, 'FUNDO NUEVA CALIFORNIA': 0,   // Javier
+  'ELISE CAMPO': 1, 'EDEN': 1, 'AGA CALIFORNIA': 1, 'SANTA ZOILA': 1                                         // Ari
+};
+function ordenarCosecha(rows) {
+  const acc = {};
+  rows.forEach(function (r) {
+    const f = familiaCosecha(r.sede);
+    acc[f] = acc[f] || { max: null };
+    if (r.prom !== null && (acc[f].max === null || r.prom > acc[f].max)) acc[f].max = r.prom;
+  });
+  function score(f) { return acc[f].max; }
+  function gerencia(f) { return GERENCIA_COSECHA.hasOwnProperty(f) ? GERENCIA_COSECHA[f] : 2; }
+  rows.sort(function (a, b) {
+    const fa = familiaCosecha(a.sede), fb = familiaCosecha(b.sede);
+    if (gerencia(fa) !== gerencia(fb)) return gerencia(fa) - gerencia(fb);
+    if (fa !== fb) {
+      const sa = score(fa), sb = score(fb);
+      if (sa === null && sb === null) return fa.localeCompare(fb);
+      if (sa === null) return 1;
+      if (sb === null) return -1;
+      return sb - sa;
+    }
+    if (a.prom === null && b.prom === null) return a.sede.localeCompare(b.sede);
+    if (a.prom === null) return 1;
+    if (b.prom === null) return -1;
+    return b.prom - a.prom;
+  });
+}
+
 function visibleRows(laborKey, visDates) {
   let sedes = sedesOf(laborKey);
   if (activeEmpresas) {
@@ -933,6 +974,10 @@ function visibleRows(laborKey, visDates) {
     const c = catIndex(r.prom, bounds);
     return c === 0 || c === 3;
   });
+  if (laborKey === 'cosecha') {
+    ordenarCosecha(rows);
+    return rows;
+  }
   rows.sort(function (a, b) {
     if (a.prom === null && b.prom === null) return a.sede.localeCompare(b.sede);
     if (a.prom === null) return 1;
@@ -1070,7 +1115,7 @@ function renderBlock(def) {
   }
   const sub = 'Ingreso promedio por día (S/) · ' + periodo + ' · ' +
               groups.length + (groups.length === 1 ? ' labor' : ' labores') + ' · ' +
-              nSedes + (nSedes === 1 ? ' sede' : ' sedes') + ' · ordenado de mayor a menor ingreso promedio' +
+              nSedes + (nSedes === 1 ? ' sede' : ' sedes') + (def.labores.length === 1 && def.labores[0] === 'cosecha' ? ' · agrupado por gerencia (Javier, luego Ari) y por fundo, de mayor a menor ingreso promedio' : ' · ordenado de mayor a menor ingreso promedio') +
               (isDaily ? ' · clic en una sede para ver rendimiento, dotación y tarifa' : '');
 
   // una sola gama de parámetros en el bloque -> mostrar los rangos exactos en la clave
